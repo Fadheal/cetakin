@@ -191,34 +191,51 @@ app.post('/api/upload', upload.array('files'), async (req, res) => {
     const fileInfos = [];
     for (const f of files) {
       let pages = 1;
-      if (f.mimetype === 'application/pdf') {
+      const isPDF = f.mimetype === 'application/pdf' || f.originalname.toLowerCase().endsWith('.pdf');
+      if (isPDF) {
+        console.log(`Processing as PDF: ${f.originalname}, mimetype: ${f.mimetype}, size: ${f.size}`);
         try {
           const { PDFDocument } = await import('pdf-lib');
-          // lazy load pdf-parse using createRequire to avoid ESM default export issues
           const { createRequire } = await import('module');
           const requireModule = createRequire(import.meta.url);
           const pdfParse = requireModule('pdf-parse');
           
           const dataBuffer = f.buffer ? f.buffer : fs.readFileSync(f.path);
+          console.log(`Data buffer obtained, length: ${dataBuffer.length}`);
           
+          // Strategy 1: pdf-lib
           try {
-            const pdfDoc = await PDFDocument.load(dataBuffer, { ignoreEncryption: true });
+            console.log('Attempting pdf-lib load...');
+            const pdfDoc = await PDFDocument.load(dataBuffer, { 
+              ignoreEncryption: true,
+              updateMetadata: false 
+            });
             pages = pdfDoc.getPageCount();
+            console.log(`pdf-lib success: ${pages} pages`);
           } catch (libErr) {
-            console.warn('pdf-lib failed, trying pdf-parse:', libErr);
+            console.warn('pdf-lib failed, trying pdf-parse fallback:', libErr instanceof Error ? libErr.message : 'Unknown error');
+            // Strategy 2: pdf-parse
             try {
+              console.log('Attempting pdf-parse...');
               const data = await pdfParse(dataBuffer);
-              pages = data.numpages;
+              pages = data.numpages || data.numPages || 1;
+              console.log(`pdf-parse success: ${pages} pages (props: numpages=${data.numpages}, numPages=${data.numPages})`);
             } catch (parseErr) {
-              console.error('pdf-parse fallback also failed:', parseErr);
+              console.error('pdf-parse fallback also failed:', parseErr instanceof Error ? parseErr.message : 'Unknown error');
               pages = 1;
             }
           }
-          if (!pages || pages < 1) pages = 1;
         } catch (error) {
-          console.error('PDF processing fatal error:', error);
+          console.error('PDF processing fatal error:', error instanceof Error ? error.message : 'Unknown error');
           pages = 1;
         }
+      } else {
+        console.log(`Skipping page count for: ${f.originalname}, mimetype: ${f.mimetype}`);
+      }
+      
+      if (!pages || typeof pages !== 'number' || pages < 1) {
+        console.log('Page count invalid, defaulting to 1');
+        pages = 1;
       }
       
       fileInfos.push({
