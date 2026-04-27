@@ -22,7 +22,15 @@ export const useSession = () => {
     const fetchSession = async () => {
       try {
         const res = await fetch('/api/auth/session');
-        const json = await res.json();
+        const text = await res.text();
+        let json;
+        try {
+          json = JSON.parse(text);
+        } catch (e) {
+          console.error('Failed to parse session response:', text);
+          return;
+        }
+        
         if (json.session) {
           sessionCache = json.session;
           setData(json.session);
@@ -64,8 +72,17 @@ export const signIn = {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ email, password }),
       });
-      const data = await res.json();
-      if (!res.ok) return { error: { message: data.error } };
+      
+      const text = await res.text();
+      let data;
+      try {
+        data = JSON.parse(text);
+      } catch (e) {
+        console.error('Failed to parse response as JSON. Response text:', text);
+        return { error: { message: 'Server returned non-JSON response' } };
+      }
+
+      if (!res.ok) return { error: { message: data.error || 'Server error' } };
       
       sessionCache = { user: data.user };
       listeners.forEach(l => l(sessionCache));

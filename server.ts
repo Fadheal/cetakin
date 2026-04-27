@@ -38,15 +38,25 @@ const requireAdmin = async (req: express.Request, res: express.Response, next: e
   }
 };
 
-// Ensure uploads directory exists
-const uploadsDir = path.join(process.cwd(), 'uploads');
-if (!fs.existsSync(uploadsDir)) {
-  fs.mkdirSync(uploadsDir, { recursive: true });
+// Ensure uploads directory exists - handle Vercel read-only filesystem
+const isVercel = !!process.env.VERCEL;
+const uploadsDir = isVercel ? '/tmp/uploads' : path.join(process.cwd(), 'uploads');
+
+function ensureUploadsDir() {
+  if (!fs.existsSync(uploadsDir)) {
+    try {
+      fs.mkdirSync(uploadsDir, { recursive: true });
+    } catch (err) {
+      console.error('Failed to create uploads directory:', err);
+    }
+  }
 }
+ensureUploadsDir();
 
 // Multer config
 const storage = multer.diskStorage({
   destination: (req, file, cb) => {
+    ensureUploadsDir();
     cb(null, uploadsDir);
   },
   filename: (req, file, cb) => {
