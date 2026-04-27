@@ -1,4 +1,3 @@
-import 'dotenv/config';
 import express from 'express';
 // import { createServer as createViteServer } from 'vite'; // Moved to lazy import
 import path from 'path';
@@ -9,8 +8,8 @@ import multer from 'multer';
 import jwt from 'jsonwebtoken';
 import bcrypt from 'bcryptjs';
 import cookieParser from 'cookie-parser';
-import { db } from './src/db/index';
-import { orders, printSettings, orderFiles, admins } from './src/db/schema';
+import { db } from './src/db/index.js';
+import { orders, printSettings, orderFiles, admins } from './src/db/schema.js';
 import { eq, desc } from 'drizzle-orm';
 
 const JWT_SECRET = process.env.JWT_SECRET || 'cetakin-secret-key-123';
