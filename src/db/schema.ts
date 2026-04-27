@@ -31,6 +31,7 @@ export const printSettings = pgTable('print_settings', {
   paperWeight: text('paper_weight'),
   cutting: text('cutting'),
   layout: text('layout'),
+  orientation: text('orientation'),
   binding: text('binding'),
   notes: text('notes'),
 });

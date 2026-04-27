@@ -138,6 +138,26 @@ app.get('/api/auth/session', async (req, res) => {
   }
 });
 
+app.get('/api/admin/files/proxy', requireAdmin, async (req, res) => {
+  const fileUrl = req.query.url as string;
+  if (!fileUrl) return res.status(400).json({ error: 'URL is required' });
+
+  try {
+    const response = await fetch(fileUrl);
+    if (!response.ok) throw new Error('Failed to fetch from blob storage');
+    
+    const contentType = response.headers.get('content-type');
+    const arrayBuffer = await response.arrayBuffer();
+    const buffer = Buffer.from(arrayBuffer);
+
+    if (contentType) res.setHeader('Content-Type', contentType);
+    res.send(buffer);
+  } catch (error) {
+    console.error('File proxy error:', error);
+    res.status(500).json({ error: 'Failed to proxy file' });
+  }
+});
+
 app.post('/api/auth/setup', async (req, res) => {
   if (!db) return res.status(503).json({ error: 'Database not available' });
   const { name, email, password, setupKey } = req.body;
@@ -261,6 +281,7 @@ app.post('/api/orders', async (req, res) => {
         paperWeight: settings.paperWeight,
         cutting: settings.cutting,
         layout: settings.layout,
+        orientation: settings.orientation,
         binding: settings.binding,
         notes: settings.notes,
       });

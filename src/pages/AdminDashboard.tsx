@@ -39,6 +39,7 @@ interface OrderDetail {
     paperWeight?: string;
     cutting?: string;
     layout?: string;
+    orientation?: 'portrait' | 'landscape';
     binding?: string;
     notes?: string;
   };
@@ -156,6 +157,69 @@ export default function AdminDashboard() {
     } catch (err) {
       console.error('Failed to delete order:', err);
     }
+  };
+
+  const handlePrint = (fileUrl: string, order: OrderDetail) => {
+    const proxyUrl = `/api/admin/files/proxy?url=${encodeURIComponent(fileUrl)}`;
+    const printWindow = window.open('', '_blank');
+    if (!printWindow) return alert('Pop-up terblokir! Silakan izinkan pop-up untuk mencetak.');
+
+    const settings = order.settings;
+    const isPDF = fileUrl.toLowerCase().includes('.pdf');
+    const isImage = /\.(jpg|jpeg|png|gif|webp)$/i.test(fileUrl);
+
+    // CSS for print settings
+    const printStyles = `
+      @page {
+        size: ${settings.orientation || 'portrait'};
+        margin: 0;
+      }
+      body {
+        margin: 0;
+        padding: 0;
+        display: flex;
+        justify-content: center;
+        align-items: flex-start;
+        ${settings.color === 'bw' ? 'filter: grayscale(100%);' : ''}
+      }
+      img, embed, iframe {
+        max-width: 100%;
+        height: auto;
+      }
+      @media print {
+        .no-print { display: none; }
+      }
+    `;
+
+    printWindow.document.write(`
+      <html>
+        <head>
+          <title>CetakIn - ${order.name}</title>
+          <style>${printStyles}</style>
+        </head>
+        <body>
+          ${isPDF 
+            ? `<iframe id="print-frame" src="${proxyUrl}" style="width:100%;height:100vh;border:none;"></iframe>` 
+            : `<img src="${proxyUrl}" onload="window.print();" />`
+          }
+          <script>
+            if (${isPDF}) {
+              const frame = document.getElementById('print-frame');
+              frame.onload = () => {
+                setTimeout(() => {
+                  try {
+                    frame.contentWindow.print();
+                  } catch (e) {
+                    window.print();
+                  }
+                }, 1000);
+              };
+            }
+          </script>
+        </body>
+      </html>
+    `);
+    printWindow.document.close();
   };
 
   const calculatePrice = (order: OrderDetail) => {
@@ -512,6 +576,7 @@ export default function AdminDashboard() {
                     { label: 'Kertas', value: selectedOrder.settings?.paperType || 'Standard' },
                     { label: 'Gramatur', value: selectedOrder.settings?.paperWeight || '70gsm' },
                     { label: 'Layout', value: selectedOrder.settings?.layout || '1-up' },
+                    { label: 'Orientasi', value: selectedOrder.settings?.orientation || 'portrait' },
                     { label: 'Potongan', value: selectedOrder.settings?.cutting === 'none' ? 'Tidak Ada' : selectedOrder.settings?.cutting },
                     { label: 'Jilid', value: selectedOrder.settings?.binding === 'none' ? 'Tidak Ada' : selectedOrder.settings?.binding },
                   ].map((item, i) => (
@@ -546,15 +611,21 @@ export default function AdminDashboard() {
                           </div>
                         </div>
                       </div>
-                      <div className="grid grid-cols-1 gap-2 pt-2">
+                      <div className="grid grid-cols-2 gap-2 pt-2">
                         <a 
-                          href={file.filename.startsWith('http') ? file.filename : `/admin/uploads/${encodeURIComponent(file.filename)}`} 
+                          href={`/api/admin/files/proxy?url=${encodeURIComponent(file.filename)}`} 
                           target="_blank" 
                           rel="noreferrer"
+                          className="flex items-center justify-center gap-2 py-3 bg-slate-100 text-slate-700 rounded-xl font-bold text-sm transition-all hover:bg-slate-200"
+                        >
+                          <ExternalLink size={16} /> Open File
+                        </a>
+                        <button 
+                          onClick={() => handlePrint(file.filename, selectedOrder)}
                           className="flex items-center justify-center gap-2 py-3 bg-[#1d4ed8] text-white rounded-xl font-bold text-sm shadow-lg shadow-[#1d4ed8]/20 transition-all hover:scale-[1.02] active:scale-[0.98]"
                         >
-                          <Printer size={16} /> Quick Print ({file.pages * (selectedOrder.settings?.copies || 1)} hal)
-                        </a>
+                          <Printer size={16} /> Print ({file.pages * (selectedOrder.settings?.copies || 1)} hal)
+                        </button>
                       </div>
                     </div>
                   ))}

@@ -17,6 +17,7 @@ export interface PrintSettings {
   paperWeight?: string;
   cutting?: string;
   layout?: string;
+  orientation: 'portrait' | 'landscape';
   binding: 'none' | 'staple' | 'ring' | 'softbound';
   notes: string;
 }

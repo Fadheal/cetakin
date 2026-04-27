@@ -39,6 +39,7 @@ export default function OrderForm() {
     paperWeight: '70gsm',
     cutting: 'none',
     layout: '1-up',
+    orientation: 'portrait',
     binding: 'none',
     notes: '',
   });
@@ -495,6 +496,32 @@ function SettingsStep({ settings, onSettingsChange, onNext, onBack }: { settings
                     <option value="2-up">2 Halaman per Lembar (Slide)</option>
                     <option value="4-up">4 Halaman per Lembar</option>
                   </select>
+                </div>
+
+                <div className="space-y-1.5">
+                  <label className="text-xs font-bold text-slate-500">Orientasi</label>
+                  <div className="grid grid-cols-2 gap-2">
+                    <button
+                      type="button"
+                      onClick={() => onSettingsChange({ ...settings, orientation: 'portrait' })}
+                      className={cn(
+                        "py-2 px-4 rounded-xl border font-bold text-sm transition-all",
+                        settings.orientation === 'portrait' ? "bg-brand-blue text-white border-brand-blue shadow-sm" : "bg-slate-50 text-slate-500 border-slate-200"
+                      )}
+                    >
+                      Potrait
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => onSettingsChange({ ...settings, orientation: 'landscape' })}
+                      className={cn(
+                        "py-2 px-4 rounded-xl border font-bold text-sm transition-all",
+                        settings.orientation === 'landscape' ? "bg-brand-blue text-white border-brand-blue shadow-sm" : "bg-slate-50 text-slate-500 border-slate-200"
+                      )}
+                    >
+                      Landscape
+                    </button>
+                  </div>
                 </div>
               </motion.div>
             )}
