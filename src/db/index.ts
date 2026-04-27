@@ -31,15 +31,15 @@ if (pool) {
 
 export const db = pool ? drizzle(pool, { schema }) : null;
 
-// Test connection and release client
-if (pool) {
-  pool.connect()
-    .then(client => {
-      console.log('Successfully connected to the database');
-      client.release(); // Important: release the client back to the pool
-    })
-    .catch((err) => console.error('Database connection error:', err));
-}
-
 // Helper to check if DB is connected
-export const isDbConnected = () => !!db;
+export const isDbConnected = async () => {
+  if (!pool) return false;
+  try {
+    const client = await pool.connect();
+    client.release();
+    return true;
+  } catch (err) {
+    console.error('Database connection check failed:', err);
+    return false;
+  }
+};

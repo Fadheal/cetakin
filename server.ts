@@ -4,9 +4,7 @@ import { createServer as createViteServer } from 'vite';
 import path from 'path';
 import fs from 'fs';
 import { createRequire } from 'module';
-const require = createRequire(import.meta.url);
-const { PDFDocument } = require('pdf-lib');
-const pdfParse = require('pdf-parse');
+// Removed heavy top-level requires to improve cold start
 import multer from 'multer';
 import jwt from 'jsonwebtoken';
 import bcrypt from 'bcryptjs';
@@ -43,15 +41,15 @@ const isVercel = !!process.env.VERCEL;
 const uploadsDir = isVercel ? '/tmp/uploads' : path.join(process.cwd(), 'uploads');
 
 function ensureUploadsDir() {
-  if (!fs.existsSync(uploadsDir)) {
-    try {
+  try {
+    if (!fs.existsSync(uploadsDir)) {
       fs.mkdirSync(uploadsDir, { recursive: true });
-    } catch (err) {
-      console.error('Failed to create uploads directory:', err);
     }
+  } catch (err) {
+    console.error('Failed to create uploads directory:', err);
   }
 }
-ensureUploadsDir();
+// Moving the top-level call to inside createServer or lazy trigger
 
 // Multer config
 const storage = multer.diskStorage({
@@ -194,7 +192,10 @@ app.post('/api/upload', upload.array('files'), async (req, res) => {
       let pages = 1;
       if (f.mimetype === 'application/pdf') {
         try {
+          const { PDFDocument } = await import('pdf-lib');
+          const pdfParse = (await import('pdf-parse')).default;
           const dataBuffer = fs.readFileSync(f.path);
+          
           try {
             const pdfDoc = await PDFDocument.load(dataBuffer, { ignoreEncryption: true });
             pages = pdfDoc.getPageCount();
@@ -208,6 +209,7 @@ app.post('/api/upload', upload.array('files'), async (req, res) => {
           }
           if (!pages || pages < 1) pages = 1;
         } catch (error) {
+          console.error('Lazy load PDF error:', error);
           pages = 1;
         }
       }
@@ -336,6 +338,19 @@ app.get('/api/orders/:id', async (req, res) => {
 });
 
 export async function createServer() {
+  console.log('Initializing server...');
+  ensureUploadsDir();
+  
+  // Global error handler for Express
+  app.use((err: any, req: express.Request, res: express.Response, next: express.NextFunction) => {
+    console.error('Unhandled Server Error:', err);
+    res.status(500).json({ 
+      error: 'Internal Server Error', 
+      message: err.message,
+      stack: process.env.NODE_ENV === 'production' ? undefined : err.stack
+    });
+  });
+
   if (process.env.NODE_ENV !== 'production') {
     const vite = await createViteServer({
       server: { middlewareMode: true },
