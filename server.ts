@@ -194,24 +194,29 @@ app.post('/api/upload', upload.array('files'), async (req, res) => {
       if (f.mimetype === 'application/pdf') {
         try {
           const { PDFDocument } = await import('pdf-lib');
-          const pdfParse = (await import('pdf-parse')).default;
-          // In memoryStorage, buffer is provided instead of path
+          // lazy load pdf-parse using createRequire to avoid ESM default export issues
+          const { createRequire } = await import('module');
+          const requireModule = createRequire(import.meta.url);
+          const pdfParse = requireModule('pdf-parse');
+          
           const dataBuffer = f.buffer ? f.buffer : fs.readFileSync(f.path);
           
           try {
             const pdfDoc = await PDFDocument.load(dataBuffer, { ignoreEncryption: true });
             pages = pdfDoc.getPageCount();
           } catch (libErr) {
+            console.warn('pdf-lib failed, trying pdf-parse:', libErr);
             try {
               const data = await pdfParse(dataBuffer);
               pages = data.numpages;
             } catch (parseErr) {
+              console.error('pdf-parse fallback also failed:', parseErr);
               pages = 1;
             }
           }
           if (!pages || pages < 1) pages = 1;
         } catch (error) {
-          console.error('Lazy load PDF error:', error);
+          console.error('PDF processing fatal error:', error);
           pages = 1;
         }
       }

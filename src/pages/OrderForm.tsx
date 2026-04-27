@@ -438,7 +438,7 @@ function SettingsStep({ settings, onSettingsChange, onNext, onBack }: { settings
                   >
                     <span>{s === 'single' ? 'Satu Sisi' : 'Bolak Balik'}</span>
                     <span className={cn("text-[10px] font-medium opacity-80", settings.sidedness === s ? "text-white" : "text-slate-400")}>
-                      {s === 'single' ? 'Standar' : '+Rp 500/hlm'}
+                      {s === 'single' ? 'Standar' : '+Rp 500/lbr'}
                     </span>
                   </button>
                 ))}
@@ -476,8 +476,8 @@ function SettingsStep({ settings, onSettingsChange, onNext, onBack }: { settings
                     onChange={e => onSettingsChange({ ...settings, paperWeight: e.target.value })}
                   >
                     <option value="70gsm">70 GSM (Standar)</option>
-                    <option value="80gsm">80 GSM (+Rp 500/hlm)</option>
-                    <option value="100gsm">100 GSM (+Rp 500/hlm)</option>
+                    <option value="80gsm">80 GSM (+Rp 500/lbr)</option>
+                    <option value="100gsm">100 GSM (+Rp 500/lbr)</option>
                   </select>
                 </div>
 
@@ -567,18 +567,29 @@ function SettingsStep({ settings, onSettingsChange, onNext, onBack }: { settings
 }
 
 function ReviewStep({ personalInfo, files, settings, onBack, onSubmit, isSubmitting }: { personalInfo: PersonalInfo, files: FileInfo[], settings: PrintSettings, onBack: () => void, onSubmit: () => void, isSubmitting: boolean }) {
-  const totalPages = files.reduce((acc, curr) => acc + (curr.pages * settings.copies), 0);
+  const totalPagesInOneSet = files.reduce((acc, curr) => acc + curr.pages, 0);
+  const totalPages = totalPagesInOneSet * settings.copies;
   
-  // Detailed pricing calculation
-  let costPerPage = settings.color === 'bw' ? 500 : 1000;
-  if (settings.sidedness === 'double') costPerPage += 500;
-  if (settings.paperWeight === '80gsm' || settings.paperWeight === '100gsm') costPerPage += 500;
+  // Calculate sheets (1 sheet = 2 pages for double sided)
+  const sheetsInOneSet = settings.sidedness === 'double' ? Math.ceil(totalPagesInOneSet / 2) : totalPagesInOneSet;
+  const totalSheets = sheetsInOneSet * settings.copies;
+
+  // 1. Color cost: per page
+  const pagePrice = settings.color === 'bw' ? 500 : 1000;
+  const pageCost = totalPages * pagePrice;
   
+  // 2. Paper weight and sidedness cost: per sheet
+  const sidednessAddition = settings.sidedness === 'double' ? 500 : 0;
+  const paperAddition = (settings.paperWeight === '80gsm' || settings.paperWeight === '100gsm') ? 500 : 0;
+  const sheetAddition = sidednessAddition + paperAddition;
+  const sheetCost = totalSheets * sheetAddition;
+
+  // 3. Binding cost: per order
   let finishingCost = 0;
   if (settings.binding === 'ring') finishingCost = 5000;
   else if (settings.binding === 'softbound') finishingCost = 1000;
 
-  const estimatedTotal = (totalPages * costPerPage) + finishingCost;
+  const estimatedTotal = pageCost + sheetCost + finishingCost;
 
   return (
     <div className="space-y-6">
@@ -648,25 +659,42 @@ function ReviewStep({ personalInfo, files, settings, onBack, onSubmit, isSubmitt
             <div className="space-y-2">
               <h3 className="font-bold text-slate-400 uppercase text-[10px] tracking-widest">Estimasi Biaya</h3>
               <div className="bg-brand-blue/5 p-6 rounded-2xl border border-brand-blue/10 space-y-4">
-                <div className="space-y-2">
+                <div className="space-y-3">
                   <div className="flex justify-between text-xs text-slate-500">
                     <span>Total Halaman (x{settings.copies})</span>
                     <span>{totalPages} Hal</span>
                   </div>
-                  <div className="flex justify-between text-xs text-slate-500">
-                    <span>Biaya per Halaman</span>
-                    <span>Rp {costPerPage.toLocaleString('id-ID')}</span>
+                  <div className="flex justify-between text-xs text-slate-600 font-medium">
+                    <span>{settings.color === 'bw' ? 'Hitam Putih' : 'Berwarna'} (Rp {pagePrice}/hal)</span>
+                    <span>Rp {pageCost.toLocaleString('id-ID')}</span>
                   </div>
-                  {finishingCost > 0 && (
-                    <div className="flex justify-between text-xs text-slate-500">
-                      <span>Biaya Jilid ({settings.binding === 'ring' ? 'Spiral' : 'Lakban'})</span>
-                      <span>Rp {finishingCost.toLocaleString('id-ID')}</span>
+                  
+                  <div className="border-t border-brand-blue/5 my-2"></div>
+                  
+                  <div className="flex justify-between text-xs text-slate-500">
+                    <span>Total Lembar (x{settings.copies})</span>
+                    <span>{totalSheets} Lembar</span>
+                  </div>
+                  {sheetAddition > 0 && (
+                    <div className="flex justify-between text-xs text-slate-600 font-medium">
+                      <span>Tambahan Lembar (+Rp {sheetAddition})</span>
+                      <span>Rp {sheetCost.toLocaleString('id-ID')}</span>
                     </div>
+                  )}
+
+                  {finishingCost > 0 && (
+                    <>
+                      <div className="border-t border-brand-blue/5 my-2"></div>
+                      <div className="flex justify-between text-xs text-slate-600 font-medium">
+                        <span>Biaya Jilid</span>
+                        <span>Rp {finishingCost.toLocaleString('id-ID')}</span>
+                      </div>
+                    </>
                   )}
                 </div>
                 <div className="border-t border-brand-blue/20 pt-4 flex justify-between items-end">
                   <span className="text-sm font-bold text-slate-600">Total Bayar</span>
-                  <span className="text-2xl font-bold text-brand-blue">Rp {estimatedTotal.toLocaleString('id-ID')}</span>
+                  <span className="text-2xl font-black text-brand-blue leading-none">Rp {estimatedTotal.toLocaleString('id-ID')}</span>
                 </div>
                 <p className="text-[10px] text-slate-400 italic font-medium leading-relaxed">
                   * Harga ini adalah estimasi awal. Pembayaran bisa dilakukan secara COD saat dokumen diantar ke kelas.

@@ -115,16 +115,30 @@ export default function AdminDashboard() {
   };
 
   const calculatePrice = (order: OrderDetail) => {
-    const totalPages = order.files.reduce((acc, f) => acc + (f.pages * (order.settings?.copies || 1)), 0);
-    let costPerPage = order.settings?.color === 'bw' ? 500 : 1000;
-    if (order.settings?.sidedness === 'double') costPerPage += 500;
-    if (order.settings?.paperWeight === '80gsm' || order.settings?.paperWeight === '100gsm') costPerPage += 500;
+    const totalPagesOfOneSet = order.files.reduce((acc, f) => acc + f.pages, 0);
+    const copies = order.settings?.copies || 1;
+    const totalPages = totalPagesOfOneSet * copies;
     
+    // Sheets calculation
+    const sheetsOfOneSet = order.settings?.sidedness === 'double' ? Math.ceil(totalPagesOfOneSet / 2) : totalPagesOfOneSet;
+    const totalSheets = sheetsOfOneSet * copies;
+
+    // 1. Color cost: per page
+    const pagePrice = order.settings?.color === 'bw' ? 500 : 1000;
+    const pageCost = totalPages * pagePrice;
+    
+    // 2. Paper weight and sidedness cost: per sheet
+    const sidednessAddition = order.settings?.sidedness === 'double' ? 500 : 0;
+    const paperAddition = (order.settings?.paperWeight === '80gsm' || order.settings?.paperWeight === '100gsm') ? 500 : 0;
+    const sheetAddition = sidednessAddition + paperAddition;
+    const sheetCost = totalSheets * sheetAddition;
+
+    // 3. Finishing cost: per order
     let finishingCost = 0;
     if (order.settings?.binding === 'ring') finishingCost = 5000;
     else if (order.settings?.binding === 'softbound') finishingCost = 1000;
     
-    return (totalPages * costPerPage) + finishingCost;
+    return pageCost + sheetCost + finishingCost;
   };
 
   const filteredOrders = orders.filter(o => {
