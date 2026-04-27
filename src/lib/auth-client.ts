@@ -69,8 +69,9 @@ export const signIn = {
       
       sessionCache = { user: data.user };
       listeners.forEach(l => l(sessionCache));
-      return { data: sessionCache };
+      return { data: sessionCache, shouldChangePassword: data.shouldChangePassword };
     } catch (err) {
+      console.error('Sign-in fetch error:', err);
       return { error: { message: 'Network error' } };
     }
   }
