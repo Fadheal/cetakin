@@ -105,8 +105,8 @@ export default function OrderForm() {
           </h1>
         </div>
         <div className="flex items-center space-x-8 text-sm font-medium text-slate-800">
-          <a href="https://wa.link/lr24ph" className="hover:text-brand-blue transition-colors">Help</a>
-          <a href="https://wa.link/lr24ph" className="hover:text-brand-blue transition-colors">Contact</a>
+          <a href="https://wa.link/lr24ph" target="_blank" rel="noopener noreferrer" className="hover:text-brand-blue transition-colors">Help</a>
+          <a href="https://wa.link/lr24ph" target="_blank" rel="noopener noreferrer" className="hover:text-brand-blue transition-colors">Contact</a>
         </div>
       </nav>
 
