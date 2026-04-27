@@ -183,7 +183,7 @@ export default function OrderStatus() {
               <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1">Butuh Bantuan?</p>
               <p className="text-xs font-bold text-slate-600">Hubungi Admin via WhatsApp jika ada kendala.</p>
             </div>
-            <button className="bg-green-500 text-white px-6 py-2.5 rounded-xl font-bold flex items-center gap-2 hover:bg-green-600 transition-all shadow-lg shadow-green-500/20 text-sm">
+            <button className="bg-green-500 text-white px-6 py-2.5 rounded-xl font-bold flex items-center gap-2 hover:bg-green-600 transition-all shadow-lg shadow-green-500/20 text-sm" onclick={() => window.open('https://wa.link/lr24ph', '_blank')}>
               Chat Admin
             </button>
           </div>
