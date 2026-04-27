@@ -281,7 +281,7 @@ app.post('/api/orders', async (req, res) => {
         paperWeight: settings.paperWeight,
         cutting: settings.cutting,
         layout: settings.layout,
-        orientation: settings.orientation,
+        orientation: settings.orientation || 'portrait',
         binding: settings.binding,
         notes: settings.notes,
       });
