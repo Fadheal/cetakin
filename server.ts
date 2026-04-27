@@ -17,10 +17,10 @@ import { eq, desc } from 'drizzle-orm';
 
 const JWT_SECRET = process.env.JWT_SECRET || 'cetakin-secret-key-123';
 
-async function startServer() {
-  const app = express();
-  const PORT = 3000;
+export const app = express();
+const PORT = 3000;
 
+export async function createServer() {
   // Middlewares
   app.use(express.json());
   app.use(cookieParser());
@@ -349,4 +349,13 @@ async function startServer() {
   });
 }
 
-startServer();
+// Only start the server if this file is run directly (not as a module on Vercel)
+if (process.env.NODE_ENV !== 'production' || !process.env.VERCEL) {
+  createServer().then(() => {
+    app.listen(PORT, '0.0.0.0', () => {
+      console.log(`Server running at http://0.0.0.0:${PORT}`);
+    });
+  }).catch(err => {
+    console.error('Failed to start server:', err);
+  });
+}
