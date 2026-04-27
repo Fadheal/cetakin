@@ -18,7 +18,7 @@ import {
   Filter,
   RefreshCw
 } from 'lucide-react';
-import { signOut } from '../lib/auth-client';
+import { signOut, useSession, updatePassword } from '../lib/auth-client';
 import { cn } from '../lib/utils';
 
 interface OrderDetail {
@@ -53,11 +53,55 @@ interface OrderDetail {
 }
 
 export default function AdminDashboard() {
+  const { data: session } = useSession();
   const [orders, setOrders] = useState<OrderDetail[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [filter, setFilter] = useState<'all' | 'pending' | 'printing' | 'delivered'>('all');
   const [searchTerm, setSearchTerm] = useState('');
   const [selectedOrder, setSelectedOrder] = useState<OrderDetail | null>(null);
+
+  // Password change state
+  const [showPasswordModal, setShowPasswordModal] = useState(false);
+  const [newPassword, setNewPassword] = useState('');
+  const [confirmPassword, setConfirmPassword] = useState('');
+  const [isUpdatingPassword, setIsUpdatingPassword] = useState(false);
+  const [passwordError, setPasswordError] = useState('');
+
+  useEffect(() => {
+    if (session?.user?.shouldChangePassword) {
+      setShowPasswordModal(true);
+    }
+  }, [session]);
+
+  const handlePasswordUpdate = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setPasswordError('');
+    
+    if (newPassword.length < 6) {
+      setPasswordError('Password minimal 6 karakter');
+      return;
+    }
+    if (newPassword !== confirmPassword) {
+      setPasswordError('Password tidak cocok');
+      return;
+    }
+
+    setIsUpdatingPassword(true);
+    try {
+      const res = await updatePassword(newPassword);
+      if (res.ok) {
+        setShowPasswordModal(false);
+        alert('Password berhasil diperbarui. Silakan gunakan password baru untuk login berikutnya.');
+      } else {
+        const data = await res.json();
+        setPasswordError(data.error || 'Gagal memperbarui password');
+      }
+    } catch (err) {
+      setPasswordError('Terjadi kesalahan jaringan');
+    } finally {
+      setIsUpdatingPassword(false);
+    }
+  };
 
   const fetchOrders = async (isBackground = false) => {
     if (!isBackground) setIsLoading(true);
@@ -504,7 +548,7 @@ export default function AdminDashboard() {
                       </div>
                       <div className="grid grid-cols-1 gap-2 pt-2">
                         <a 
-                          href={`/admin/uploads/${encodeURIComponent(file.filename)}`} 
+                          href={file.filename.startsWith('http') ? file.filename : `/admin/uploads/${encodeURIComponent(file.filename)}`} 
                           target="_blank" 
                           rel="noreferrer"
                           className="flex items-center justify-center gap-2 py-3 bg-[#1d4ed8] text-white rounded-xl font-bold text-sm shadow-lg shadow-[#1d4ed8]/20 transition-all hover:scale-[1.02] active:scale-[0.98]"
@@ -528,6 +572,70 @@ export default function AdminDashboard() {
           onClick={() => setSelectedOrder(null)}
         />
       )}
+      {/* Password Change Modal */}
+      <AnimatePresence>
+        {showPasswordModal && (
+          <motion.div 
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="fixed inset-0 bg-slate-900/60 backdrop-blur-md z-[100] flex items-center justify-center p-4"
+          >
+            <motion.div
+              initial={{ scale: 0.9, opacity: 0 }}
+              animate={{ scale: 1, opacity: 1 }}
+              className="bg-white rounded-3xl p-8 max-w-md w-full shadow-2xl space-y-6"
+            >
+              <div className="space-y-2 text-center">
+                <div className="w-16 h-16 bg-blue-50 text-blue-600 rounded-2xl flex items-center justify-center mx-auto mb-4">
+                  <RefreshCw size={32} />
+                </div>
+                <h3 className="text-2xl font-black text-slate-900">Ganti Password</h3>
+                <p className="text-slate-500 font-medium text-sm">
+                  Anda masih menggunakan password bawaan. Demi keamanan, silakan ganti password Anda terlebih dahulu.
+                </p>
+              </div>
+
+              <form onSubmit={handlePasswordUpdate} className="space-y-4">
+                <div className="space-y-2">
+                  <label className="text-xs font-black text-slate-400 uppercase tracking-widest">Password Baru</label>
+                  <input 
+                    type="password"
+                    required
+                    className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 outline-none transition-all font-bold"
+                    value={newPassword}
+                    onChange={e => setNewPassword(e.target.value)}
+                  />
+                </div>
+                <div className="space-y-2">
+                  <label className="text-xs font-black text-slate-400 uppercase tracking-widest">Konfirmasi Password</label>
+                  <input 
+                    type="password"
+                    required
+                    className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 outline-none transition-all font-bold"
+                    value={confirmPassword}
+                    onChange={e => setConfirmPassword(e.target.value)}
+                  />
+                </div>
+
+                {passwordError && (
+                  <p className="text-xs font-bold text-red-500 bg-red-50 p-3 rounded-lg flex items-center gap-2">
+                    {passwordError}
+                  </p>
+                )}
+
+                <button
+                  type="submit"
+                  disabled={isUpdatingPassword}
+                  className="w-full py-4 bg-blue-600 text-white rounded-2xl font-black text-sm shadow-xl shadow-blue-600/20 transition-all hover:scale-[1.02] active:scale-[0.98] disabled:opacity-50 disabled:cursor-not-allowed"
+                >
+                  {isUpdatingPassword ? 'Memperbarui...' : 'Simpan Password Baru'}
+                </button>
+              </form>
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
     </div>
   );
 }

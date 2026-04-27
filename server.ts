@@ -3,6 +3,7 @@ import express from 'express';
 import path from 'path';
 import fs from 'fs';
 import { createRequire } from 'module';
+import { put } from '@vercel/blob';
 // Removed heavy top-level requires to improve cold start
 import multer from 'multer';
 import jwt from 'jsonwebtoken';
@@ -39,30 +40,8 @@ const requireAdmin = async (req: express.Request, res: express.Response, next: e
 const isVercel = !!process.env.VERCEL;
 const uploadsDir = isVercel ? '/tmp/uploads' : path.join(process.cwd(), 'uploads');
 
-function ensureUploadsDir() {
-  try {
-    if (!fs.existsSync(uploadsDir)) {
-      fs.mkdirSync(uploadsDir, { recursive: true });
-    }
-  } catch (err) {
-    console.error('Failed to create uploads directory:', err);
-  }
-}
-// Moving the top-level call to inside createServer or lazy trigger
-
 // Multer config
-const storage = isVercel 
-  ? multer.memoryStorage() 
-  : multer.diskStorage({
-      destination: (req, file, cb) => {
-        ensureUploadsDir();
-        cb(null, uploadsDir);
-      },
-      filename: (req, file, cb) => {
-        const uniqueSuffix = Date.now() + '-' + Math.round(Math.random() * 1e9);
-        cb(null, uniqueSuffix + '-' + file.originalname);
-      },
-    });
+const storage = multer.memoryStorage();
 const upload = multer({ 
   storage,
   limits: { fileSize: 20 * 1024 * 1024 } // 20MB
@@ -93,13 +72,13 @@ app.post('/api/auth/login', async (req, res) => {
     
     res.cookie('admin_token', token, {
       httpOnly: true,
-      secure: process.env.NODE_ENV === 'production',
-      sameSite: 'lax',
+      secure: true,
+      sameSite: 'none',
       maxAge: 24 * 60 * 60 * 1000
     });
 
     res.json({ 
-      user: { id: admin.id, email: admin.email, name: admin.name },
+      user: { id: admin.id, email: admin.email, name: admin.name, shouldChangePassword: isDefaultPassword },
       shouldChangePassword: isDefaultPassword
     });
   } catch (error) {
@@ -181,7 +160,16 @@ app.post('/api/auth/setup', async (req, res) => {
   }
 });
 
-app.post('/api/upload', upload.array('files'), async (req, res) => {
+app.post('/api/upload', (req, res, next) => {
+  upload.array('files')(req, res, (err) => {
+    if (err instanceof multer.MulterError) {
+      return res.status(400).json({ error: `Upload error: ${err.message}` });
+    } else if (err) {
+      return res.status(500).json({ error: `Server error: ${err.message}` });
+    }
+    next();
+  });
+}, async (req, res) => {
   try {
     const files = req.files as Express.Multer.File[];
     if (!files || files.length === 0) {
@@ -189,86 +177,52 @@ app.post('/api/upload', upload.array('files'), async (req, res) => {
     }
     
     const fileInfos = [];
+    
     for (const f of files) {
+      // Upload to Vercel Blob
+      const blob = await put(`uploads/${Date.now()}-${f.originalname}`, f.buffer, {
+        access: 'public',
+        contentType: f.mimetype,
+      });
+
       let pages = 1;
       const isPDF = f.mimetype === 'application/pdf' || f.originalname.toLowerCase().endsWith('.pdf');
       if (isPDF) {
         try {
-          const dataBuffer = f.buffer ? f.buffer : fs.readFileSync(f.path);
-          
+          const dataBuffer = f.buffer;
           if (dataBuffer.length > 4 && dataBuffer.slice(0, 4).toString() === '%PDF') {
             let detected = false;
-            
-            // Try 1: pdf-lib (most reliable)
             try {
               const { PDFDocument } = await import('pdf-lib');
-              const pdfDoc = await PDFDocument.load(dataBuffer, { 
-                ignoreEncryption: true,
-                updateMetadata: false 
-              });
+              const pdfDoc = await PDFDocument.load(dataBuffer, { ignoreEncryption: true, updateMetadata: false });
               const count = pdfDoc.getPageCount();
-              if (count > 0) {
-                pages = count;
-                detected = true;
-              }
-            } catch (libErr) {
-              console.warn('pdf-lib failed:', String(libErr));
-            }
-
-            // Try 2: pdf-parse (fallback)
+              if (count > 0) { pages = count; detected = true; }
+            } catch (e) {}
+            
             if (!detected) {
               try {
                 const { createRequire } = await import('module');
                 const requireModule = createRequire(import.meta.url);
                 const pdfParse = requireModule('pdf-parse');
                 const data = await pdfParse(dataBuffer);
-                if (data && data.numpages > 0) {
-                  pages = data.numpages;
-                  detected = true;
-                }
-              } catch (parseErr) {
-                console.error('pdf-parse failed:', String(parseErr));
-              }
-            }
-
-            // Try 3: Binary string matching (last resort)
-            if (!detected) {
-              const content = dataBuffer.toString('binary');
-              const matches = content.match(/\/Count\s+(\d+)/g);
-              if (matches) {
-                // Find all matches and take the largest number
-                const counts = matches.map(m => {
-                  const num = m.match(/\d+/);
-                  return num ? parseInt(num[0], 10) : 0;
-                });
-                const maxCount = Math.max(...counts);
-                if (maxCount > 0) {
-                  pages = maxCount;
-                  detected = true;
-                }
-              }
+                if (data && data.numpages > 0) { pages = data.numpages; detected = true; }
+              } catch (e) {}
             }
           }
-        } catch (error) {
-          console.error('PDF total fail:', String(error));
-        }
-      }
-      
-      if (!pages || typeof pages !== 'number' || pages < 1) {
-        console.log('Page count invalid, defaulting to 1');
-        pages = 1;
+        } catch (e) {}
       }
       
       fileInfos.push({
-        filename: f.filename || `mem-${Date.now()}-${Math.round(Math.random() * 1e6)}-${f.originalname}`,
+        filename: blob.url,
         originalName: f.originalname,
         mimeType: f.mimetype,
         size: f.size,
-        pages: pages,
+        pages: pages || 1,
       });
     }
     res.json({ files: fileInfos });
   } catch (err: any) {
+    console.error('Upload Error:', err);
     res.status(500).json({ error: 'Internal server error during upload', details: err.message });
   }
 });
@@ -368,6 +322,7 @@ app.delete('/api/admin/orders/:id', requireAdmin, async (req, res) => {
   }
 });
 
+
 app.use('/admin/uploads', requireAdmin, express.static(uploadsDir));
 
 app.get('/api/orders/:id', async (req, res) => {
@@ -384,7 +339,6 @@ app.get('/api/orders/:id', async (req, res) => {
 
 export async function createServer() {
   console.log('Initializing server...');
-  ensureUploadsDir();
   
   // Global error handler for Express
   app.use((err: any, req: express.Request, res: express.Response, next: express.NextFunction) => {

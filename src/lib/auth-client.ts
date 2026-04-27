@@ -4,6 +4,7 @@ export interface User {
   id: string;
   email: string;
   name: string;
+  shouldChangePassword?: boolean;
 }
 
 export interface Session {
@@ -84,14 +85,35 @@ export const signIn = {
 
       if (!res.ok) return { error: { message: data.error || 'Server error' } };
       
-      sessionCache = { user: data.user };
-      listeners.forEach(l => l(sessionCache));
-      return { data: sessionCache, shouldChangePassword: data.shouldChangePassword };
+      const newSession = { user: data.user };
+      if (!data.shouldChangePassword) {
+        sessionCache = newSession;
+        listeners.forEach(l => l(sessionCache));
+      }
+      return { data: newSession, shouldChangePassword: data.shouldChangePassword };
     } catch (err) {
       console.error('Sign-in fetch error:', err);
       return { error: { message: 'Network error' } };
     }
   }
+};
+
+export const updatePassword = async (newPassword: string) => {
+  const res = await fetch('/api/auth/update-password', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ newPassword }),
+  });
+  if (res.ok) {
+    // Refresh session
+    const sessionRes = await fetch('/api/auth/session');
+    const json = await sessionRes.json();
+    if (json.session) {
+      sessionCache = json.session;
+      listeners.forEach(l => l(sessionCache));
+    }
+  }
+  return res;
 };
 
 export const signOut = async () => {

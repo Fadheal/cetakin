@@ -287,10 +287,11 @@ function FilesStep({ files, onFilesChange, onNext, onBack }: { files: FileInfo[]
       if (response.ok) {
         onFilesChange([...files, ...data.files]);
       } else {
-        alert(data.error || 'Upload failed');
+        alert(data.error || 'Upload gagal');
       }
     } catch (error) {
-      alert('Upload failed');
+      console.error('Upload error:', error);
+      alert('Terjadi kesalahan saat mengunggah file');
     } finally {
       setIsUploading(false);
     }
@@ -299,6 +300,8 @@ function FilesStep({ files, onFilesChange, onNext, onBack }: { files: FileInfo[]
   const removeFile = (filename: string) => {
     onFilesChange(files.filter(f => f.filename !== filename));
   };
+  
+  const isLoading = isUploading;
   
   return (
     <div className="space-y-6">
@@ -311,19 +314,19 @@ function FilesStep({ files, onFilesChange, onNext, onBack }: { files: FileInfo[]
             multiple 
             onChange={handleUpload}
             className="absolute inset-0 opacity-0 cursor-pointer"
-            disabled={isUploading}
+            disabled={isLoading}
           />
           <div className="w-16 h-16 bg-brand-blue/10 text-brand-blue rounded-full flex items-center justify-center mx-auto group-hover:scale-110 transition-transform">
             <Plus size={32} />
           </div>
           <div>
             <p className="font-bold text-slate-700">Pilih atau Seret File</p>
-            <p className="text-sm text-slate-400">PDF, DOCX, JPG, PNG (Max 20MB)</p>
+            <p className="text-sm text-slate-400">PDF, DOCX, JPG, PNG (Max 32MB)</p>
           </div>
-          {isUploading && (
+          {isLoading && (
             <div className="absolute inset-0 bg-white/80 rounded-2xl flex items-center justify-center gap-2">
               <div className="w-5 h-5 border-2 border-brand-blue border-t-transparent rounded-full animate-spin"></div>
-              <span className="font-bold text-brand-blue">Mengunggah...</span>
+              <span className="font-bold text-brand-blue">{isUploading ? 'Mengunggah...' : 'Memproses...'}</span>
             </div>
           )}
         </div>
