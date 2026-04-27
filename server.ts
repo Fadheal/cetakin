@@ -201,7 +201,7 @@ app.post('/api/upload', (req, res, next) => {
     for (const f of files) {
       // Upload to Vercel Blob
       const blob = await put(`uploads/${Date.now()}-${f.originalname}`, f.buffer, {
-        access: 'private',
+        access: 'public',
         contentType: f.mimetype,
       });
 
