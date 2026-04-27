@@ -193,44 +193,65 @@ app.post('/api/upload', upload.array('files'), async (req, res) => {
       let pages = 1;
       const isPDF = f.mimetype === 'application/pdf' || f.originalname.toLowerCase().endsWith('.pdf');
       if (isPDF) {
-        console.log(`Processing as PDF: ${f.originalname}, mimetype: ${f.mimetype}, size: ${f.size}`);
         try {
-          const { PDFDocument } = await import('pdf-lib');
-          const { createRequire } = await import('module');
-          const requireModule = createRequire(import.meta.url);
-          const pdfParse = requireModule('pdf-parse');
-          
           const dataBuffer = f.buffer ? f.buffer : fs.readFileSync(f.path);
-          console.log(`Data buffer obtained, length: ${dataBuffer.length}`);
           
-          // Strategy 1: pdf-lib
-          try {
-            console.log('Attempting pdf-lib load...');
-            const pdfDoc = await PDFDocument.load(dataBuffer, { 
-              ignoreEncryption: true,
-              updateMetadata: false 
-            });
-            pages = pdfDoc.getPageCount();
-            console.log(`pdf-lib success: ${pages} pages`);
-          } catch (libErr) {
-            console.warn('pdf-lib failed, trying pdf-parse fallback:', libErr instanceof Error ? libErr.message : 'Unknown error');
-            // Strategy 2: pdf-parse
+          if (dataBuffer.length > 4 && dataBuffer.slice(0, 4).toString() === '%PDF') {
+            let detected = false;
+            
+            // Try 1: pdf-lib (most reliable)
             try {
-              console.log('Attempting pdf-parse...');
-              const data = await pdfParse(dataBuffer);
-              pages = data.numpages || data.numPages || 1;
-              console.log(`pdf-parse success: ${pages} pages (props: numpages=${data.numpages}, numPages=${data.numPages})`);
-            } catch (parseErr) {
-              console.error('pdf-parse fallback also failed:', parseErr instanceof Error ? parseErr.message : 'Unknown error');
-              pages = 1;
+              const { PDFDocument } = await import('pdf-lib');
+              const pdfDoc = await PDFDocument.load(dataBuffer, { 
+                ignoreEncryption: true,
+                updateMetadata: false 
+              });
+              const count = pdfDoc.getPageCount();
+              if (count > 0) {
+                pages = count;
+                detected = true;
+              }
+            } catch (libErr) {
+              console.warn('pdf-lib failed:', String(libErr));
+            }
+
+            // Try 2: pdf-parse (fallback)
+            if (!detected) {
+              try {
+                const { createRequire } = await import('module');
+                const requireModule = createRequire(import.meta.url);
+                const pdfParse = requireModule('pdf-parse');
+                const data = await pdfParse(dataBuffer);
+                if (data && data.numpages > 0) {
+                  pages = data.numpages;
+                  detected = true;
+                }
+              } catch (parseErr) {
+                console.error('pdf-parse failed:', String(parseErr));
+              }
+            }
+
+            // Try 3: Binary string matching (last resort)
+            if (!detected) {
+              const content = dataBuffer.toString('binary');
+              const matches = content.match(/\/Count\s+(\d+)/g);
+              if (matches) {
+                // Find all matches and take the largest number
+                const counts = matches.map(m => {
+                  const num = m.match(/\d+/);
+                  return num ? parseInt(num[0], 10) : 0;
+                });
+                const maxCount = Math.max(...counts);
+                if (maxCount > 0) {
+                  pages = maxCount;
+                  detected = true;
+                }
+              }
             }
           }
         } catch (error) {
-          console.error('PDF processing fatal error:', error instanceof Error ? error.message : 'Unknown error');
-          pages = 1;
+          console.error('PDF total fail:', String(error));
         }
-      } else {
-        console.log(`Skipping page count for: ${f.originalname}, mimetype: ${f.mimetype}`);
       }
       
       if (!pages || typeof pages !== 'number' || pages < 1) {
