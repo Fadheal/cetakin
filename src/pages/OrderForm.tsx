@@ -411,11 +411,14 @@ function SettingsStep({ settings, onSettingsChange, onNext, onBack }: { settings
                     key={c}
                     onClick={() => onSettingsChange({ ...settings, color: c as any })}
                     className={cn(
-                      "py-3 rounded-xl text-sm font-bold border transition-all",
+                      "py-3 rounded-xl text-sm font-bold border transition-all flex flex-col items-center justify-center gap-1",
                       settings.color === c ? "bg-brand-blue text-white border-brand-blue" : "bg-white text-slate-600 border-slate-200"
                     )}
                   >
-                    {c === 'bw' ? 'Hitam Putih' : 'Warna'}
+                    <span>{c === 'bw' ? 'Hitam Putih' : 'Warna'}</span>
+                    <span className={cn("text-[10px] font-medium opacity-80", settings.color === c ? "text-white" : "text-slate-400")}>
+                      {c === 'bw' ? 'Rp 500/hlm' : 'Rp 1.000/hlm'}
+                    </span>
                   </button>
                 ))}
               </div>
@@ -429,11 +432,14 @@ function SettingsStep({ settings, onSettingsChange, onNext, onBack }: { settings
                     key={s}
                     onClick={() => onSettingsChange({ ...settings, sidedness: s as any })}
                     className={cn(
-                      "py-3 rounded-xl text-sm font-bold border transition-all",
+                      "py-3 rounded-xl text-sm font-bold border transition-all flex flex-col items-center justify-center gap-1",
                       settings.sidedness === s ? "bg-brand-blue text-white border-brand-blue" : "bg-white text-slate-600 border-slate-200"
                     )}
                   >
-                    {s === 'single' ? 'Satu Sisi' : 'Bolak Balik'}
+                    <span>{s === 'single' ? 'Satu Sisi' : 'Bolak Balik'}</span>
+                    <span className={cn("text-[10px] font-medium opacity-80", settings.sidedness === s ? "text-white" : "text-slate-400")}>
+                      {s === 'single' ? 'Standar' : '+Rp 500/hlm'}
+                    </span>
                   </button>
                 ))}
               </div>
@@ -470,8 +476,8 @@ function SettingsStep({ settings, onSettingsChange, onNext, onBack }: { settings
                     onChange={e => onSettingsChange({ ...settings, paperWeight: e.target.value })}
                   >
                     <option value="70gsm">70 GSM (Standar)</option>
-                    <option value="80gsm">80 GSM (Sedikit Tebal)</option>
-                    <option value="100gsm">100 GSM (Tebal/Premium)</option>
+                    <option value="80gsm">80 GSM (+Rp 500/hlm)</option>
+                    <option value="100gsm">100 GSM (+Rp 500/hlm)</option>
                   </select>
                 </div>
 
@@ -501,10 +507,10 @@ function SettingsStep({ settings, onSettingsChange, onNext, onBack }: { settings
                 value={settings.binding}
                 onChange={e => onSettingsChange({ ...settings, binding: e.target.value as any })}
               >
-                <option value="none">Tanpa Jilid</option>
-                <option value="staple">Staples Saja</option>
-                <option value="ring">Spiral (Ring)</option>
-                <option value="softbound">Lakban</option>
+                <option value="none">Tanpa Jilid (Gratis)</option>
+                <option value="staple">Staples Saja (Gratis)</option>
+                <option value="ring">Spiral / Ring (+Rp 5.000)</option>
+                <option value="softbound">Lakban (+Rp 1.000)</option>
               </select>
             </div>
 
@@ -562,9 +568,17 @@ function SettingsStep({ settings, onSettingsChange, onNext, onBack }: { settings
 
 function ReviewStep({ personalInfo, files, settings, onBack, onSubmit, isSubmitting }: { personalInfo: PersonalInfo, files: FileInfo[], settings: PrintSettings, onBack: () => void, onSubmit: () => void, isSubmitting: boolean }) {
   const totalPages = files.reduce((acc, curr) => acc + (curr.pages * settings.copies), 0);
-  // Simple pricing: 500 per page for BW, 1000 for color
-  const pricePerPage = settings.color === 'bw' ? 500 : 1000;
-  const estimatedTotal = totalPages * pricePerPage;
+  
+  // Detailed pricing calculation
+  let costPerPage = settings.color === 'bw' ? 500 : 1000;
+  if (settings.sidedness === 'double') costPerPage += 500;
+  if (settings.paperWeight === '80gsm' || settings.paperWeight === '100gsm') costPerPage += 500;
+  
+  let finishingCost = 0;
+  if (settings.binding === 'ring') finishingCost = 5000;
+  else if (settings.binding === 'softbound') finishingCost = 1000;
+
+  const estimatedTotal = (totalPages * costPerPage) + finishingCost;
 
   return (
     <div className="space-y-6">
@@ -600,12 +614,12 @@ function ReviewStep({ personalInfo, files, settings, onBack, onSubmit, isSubmitt
                   <span className="text-slate-500">Sisi</span>
                   <span className="font-bold text-slate-800">{settings.sidedness === 'single' ? 'Satu Sisi' : 'Bolak Balik'}</span>
                 </div>
+                <div className="flex justify-between">
+                  <span className="text-slate-500">Kertas</span>
+                  <span className="font-bold text-slate-800">{settings.paperWeight || '70gsm'}</span>
+                </div>
                 {settings.mode === 'advanced' && (
                   <>
-                    <div className="flex justify-between">
-                      <span className="text-slate-500">Kertas</span>
-                      <span className="font-bold text-slate-800">{settings.paperWeight}</span>
-                    </div>
                     <div className="flex justify-between">
                       <span className="text-slate-500">Layout</span>
                       <span className="font-bold text-slate-800">{settings.layout}</span>
@@ -620,7 +634,11 @@ function ReviewStep({ personalInfo, files, settings, onBack, onSubmit, isSubmitt
                 )}
                 <div className="flex justify-between">
                   <span className="text-slate-500">Binding</span>
-                  <span className="font-bold text-slate-800">{settings.binding === 'none' ? 'Tanpa Jilid' : settings.binding}</span>
+                  <span className="font-bold text-slate-800">
+                    {settings.binding === 'none' ? 'Tanpa Jilid' : 
+                     settings.binding === 'staple' ? 'Staples' : 
+                     settings.binding === 'ring' ? 'Spiral' : 'Lakban'}
+                  </span>
                 </div>
               </div>
             </div>
@@ -630,15 +648,21 @@ function ReviewStep({ personalInfo, files, settings, onBack, onSubmit, isSubmitt
             <div className="space-y-2">
               <h3 className="font-bold text-slate-400 uppercase text-[10px] tracking-widest">Estimasi Biaya</h3>
               <div className="bg-brand-blue/5 p-6 rounded-2xl border border-brand-blue/10 space-y-4">
-                <div className="space-y-1">
+                <div className="space-y-2">
                   <div className="flex justify-between text-xs text-slate-500">
                     <span>Total Halaman (x{settings.copies})</span>
                     <span>{totalPages} Hal</span>
                   </div>
                   <div className="flex justify-between text-xs text-slate-500">
-                    <span>Harga per Hal</span>
-                    <span>Rp {pricePerPage}</span>
+                    <span>Biaya per Halaman</span>
+                    <span>Rp {costPerPage.toLocaleString('id-ID')}</span>
                   </div>
+                  {finishingCost > 0 && (
+                    <div className="flex justify-between text-xs text-slate-500">
+                      <span>Biaya Jilid ({settings.binding === 'ring' ? 'Spiral' : 'Lakban'})</span>
+                      <span>Rp {finishingCost.toLocaleString('id-ID')}</span>
+                    </div>
+                  )}
                 </div>
                 <div className="border-t border-brand-blue/20 pt-4 flex justify-between items-end">
                   <span className="text-sm font-bold text-slate-600">Total Bayar</span>

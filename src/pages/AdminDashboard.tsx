@@ -114,6 +114,19 @@ export default function AdminDashboard() {
     }
   };
 
+  const calculatePrice = (order: OrderDetail) => {
+    const totalPages = order.files.reduce((acc, f) => acc + (f.pages * (order.settings?.copies || 1)), 0);
+    let costPerPage = order.settings?.color === 'bw' ? 500 : 1000;
+    if (order.settings?.sidedness === 'double') costPerPage += 500;
+    if (order.settings?.paperWeight === '80gsm' || order.settings?.paperWeight === '100gsm') costPerPage += 500;
+    
+    let finishingCost = 0;
+    if (order.settings?.binding === 'ring') finishingCost = 5000;
+    else if (order.settings?.binding === 'softbound') finishingCost = 1000;
+    
+    return (totalPages * costPerPage) + finishingCost;
+  };
+
   const filteredOrders = orders.filter(o => {
     const matchesFilter = filter === 'all' || o.status === filter;
     const matchesSearch = o.name.toLowerCase().includes(searchTerm.toLowerCase()) || 
@@ -252,6 +265,7 @@ export default function AdminDashboard() {
                   <th className="px-6 py-4 text-[10px] font-black text-slate-400 uppercase tracking-widest">Pemesan</th>
                   <th className="px-6 py-4 text-[10px] font-black text-slate-400 uppercase tracking-widest">Waktu Antar</th>
                   <th className="px-6 py-4 text-[10px] font-black text-slate-400 uppercase tracking-widest">Halaman</th>
+                  <th className="px-6 py-4 text-[10px] font-black text-slate-400 uppercase tracking-widest">Total Bayar</th>
                   <th className="px-6 py-4 text-[10px] font-black text-slate-400 uppercase tracking-widest">Status</th>
                   <th className="px-6 py-4 text-[10px] font-black text-slate-400 uppercase tracking-widest text-right">Aksi</th>
                 </tr>
@@ -314,6 +328,11 @@ export default function AdminDashboard() {
                         </p>
                       </td>
                       <td className="px-6 py-5">
+                        <p className="text-sm font-bold text-[#1d4ed8]">
+                          Rp {calculatePrice(order).toLocaleString('id-ID')}
+                        </p>
+                      </td>
+                      <td className="px-6 py-5">
                         <div className={cn(
                           "inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-[11px] font-black uppercase tracking-wider",
                           order.status === 'pending' ? 'bg-amber-100 text-amber-700' :
@@ -362,8 +381,8 @@ export default function AdminDashboard() {
             className="fixed inset-y-0 right-0 w-[500px] bg-white shadow-2xl z-50 flex flex-col border-l border-slate-200"
           >
             <div className="p-8 border-b border-slate-100 flex items-center justify-between sticky top-0 bg-white/80 backdrop-blur-md z-10">
-              <div>
-                <p className="text-[10px] font-black text-[#1d4ed8] uppercase tracking-widest mb-1">Detail Pesanan</p>
+              <div className="flex-1">
+                <p className="text-[10px] font-black text-[#1d4ed8] uppercase tracking-widest mb-1">Total: Rp {calculatePrice(selectedOrder).toLocaleString('id-ID')}</p>
                 <h3 className="text-xl font-black text-slate-900 line-clamp-1">{selectedOrder.name}</h3>
               </div>
               <button 
