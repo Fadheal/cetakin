@@ -1,6 +1,6 @@
 import 'dotenv/config';
 import express from 'express';
-import { createServer as createViteServer } from 'vite';
+// import { createServer as createViteServer } from 'vite'; // Moved to lazy import
 import path from 'path';
 import fs from 'fs';
 import { createRequire } from 'module';
@@ -52,16 +52,18 @@ function ensureUploadsDir() {
 // Moving the top-level call to inside createServer or lazy trigger
 
 // Multer config
-const storage = multer.diskStorage({
-  destination: (req, file, cb) => {
-    ensureUploadsDir();
-    cb(null, uploadsDir);
-  },
-  filename: (req, file, cb) => {
-    const uniqueSuffix = Date.now() + '-' + Math.round(Math.random() * 1e9);
-    cb(null, uniqueSuffix + '-' + file.originalname);
-  },
-});
+const storage = isVercel 
+  ? multer.memoryStorage() 
+  : multer.diskStorage({
+      destination: (req, file, cb) => {
+        ensureUploadsDir();
+        cb(null, uploadsDir);
+      },
+      filename: (req, file, cb) => {
+        const uniqueSuffix = Date.now() + '-' + Math.round(Math.random() * 1e9);
+        cb(null, uniqueSuffix + '-' + file.originalname);
+      },
+    });
 const upload = multer({ 
   storage,
   limits: { fileSize: 20 * 1024 * 1024 } // 20MB
@@ -194,7 +196,8 @@ app.post('/api/upload', upload.array('files'), async (req, res) => {
         try {
           const { PDFDocument } = await import('pdf-lib');
           const pdfParse = (await import('pdf-parse')).default;
-          const dataBuffer = fs.readFileSync(f.path);
+          // In memoryStorage, buffer is provided instead of path
+          const dataBuffer = f.buffer ? f.buffer : fs.readFileSync(f.path);
           
           try {
             const pdfDoc = await PDFDocument.load(dataBuffer, { ignoreEncryption: true });
@@ -215,7 +218,7 @@ app.post('/api/upload', upload.array('files'), async (req, res) => {
       }
       
       fileInfos.push({
-        filename: f.filename,
+        filename: f.filename || `mem-${Date.now()}-${Math.round(Math.random() * 1e6)}-${f.originalname}`,
         originalName: f.originalname,
         mimeType: f.mimetype,
         size: f.size,
@@ -351,12 +354,17 @@ export async function createServer() {
     });
   });
 
-  if (process.env.NODE_ENV !== 'production') {
-    const vite = await createViteServer({
-      server: { middlewareMode: true },
-      appType: 'spa',
-    });
-    app.use(vite.middlewares);
+  if (process.env.NODE_ENV !== 'production' && !process.env.VERCEL) {
+    try {
+      const { createServer: createViteServer } = await import('vite');
+      const vite = await createViteServer({
+        server: { middlewareMode: true },
+        appType: 'spa',
+      });
+      app.use(vite.middlewares);
+    } catch (err) {
+      console.error('Failed to initialize Vite middleware:', err);
+    }
   } else if (!process.env.VERCEL) {
     // Only serve static files via Express if NOT on Vercel
     // Vercel handles static routing via vercel.json rewrites
