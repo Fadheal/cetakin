@@ -209,7 +209,7 @@ export default function AdminLogin() {
         </div>
 
         <p className="mt-8 text-center text-slate-400 text-sm font-medium">
-          Lupa kata sandi? <button onClick={setShowPasswordChange(true)}>Ganti Password</button>.
+          Lupa kata sandi?.
         </p>
       </motion.div>
     </div>
