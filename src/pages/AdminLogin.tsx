@@ -72,27 +72,6 @@ export default function AdminLogin() {
     }
   };
   
-  const handleGanti = async() => {
-    try {
-      const res = await fetch('/api/auth/update-password', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ "22122009" }),
-      });
-      const data = await res.json();
-      if (!res.ok) {
-        setError(data.error || 'Failed to update password');
-      } else {
-        // Reload to update session
-        window.location.reload();
-      }
-    } catch (err) {
-      setError('Network error updating password');
-    } finally {
-      setIsLoading(false);
-    }
-  };
-
   if (showPasswordChange) {
     return (
       <div className="min-h-screen bg-slate-50 flex items-center justify-center p-6 font-sans">
@@ -230,7 +209,7 @@ export default function AdminLogin() {
         </div>
 
         <p className="mt-8 text-center text-slate-400 text-sm font-medium">
-          Lupa kata sandi? <button onClick={handleGanti}>Ganti Password</button>.
+          Lupa kata sandi? <button onClick={setShowPasswordChange(true)}>Ganti Password</button>.
         </p>
       </motion.div>
     </div>
